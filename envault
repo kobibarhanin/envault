@@ -59,8 +59,10 @@ main(){
             echo_log "file $filepath removed"
         fi
 
-    elif [[ $CMD == 'lock' && $STATUS == 'open' ]];
+    elif [[ $CMD == 'lock' ]];
     then
+        if [[ $STATUS == 'open' ]];
+        then
         log "locking envault"
         cat $LOCKED_FILES | while read filename
         do
@@ -74,26 +76,26 @@ main(){
                 echo "locked" > $STATUS_FILE
             fi
         done
+    fi
 
-    elif [[ $CMD == 'open' && $STATUS == 'locked' ]]; 
+    elif [[ $CMD == 'open' ]]; 
     then
-        log "opening envault"
-        cat $LOCKED_FILES | while read filename
-        do
-            /usr/local/bin/gpg --output "${filename}" --decrypt "${filename}.enc" >/dev/null 2>/dev/null  
-            RV=$?
-            if [[ $RV != 0 ]];
-            then
-                echo_log "error: $RV decrypting ${filename}.enc"
-            else
-                rm -f "$filename.enc"
-                echo "open" > $STATUS_FILE
-            fi       
-        done
-
-    elif [[ $CMD == 'open' && $STATUS == 'open' || $CMD == 'lock' && $STATUS == 'locked' ]]; 
-    then
-        :
+        if [[ $STATUS == 'locked' ]];
+        then
+            log "opening envault"
+            cat $LOCKED_FILES | while read filename
+            do
+                /usr/local/bin/gpg --output "${filename}" --decrypt "${filename}.enc" >/dev/null 2>/dev/null  
+                RV=$?
+                if [[ $RV != 0 ]];
+                then
+                    echo_log "error: $RV decrypting ${filename}.enc"
+                else
+                    rm -f "$filename.enc"
+                    echo "open" > $STATUS_FILE
+                fi       
+            done
+        fi
 
     elif [[ $CMD == 'update' ]];
     then
