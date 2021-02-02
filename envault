@@ -1,0 +1,146 @@
+#! /bin/bash
+
+# path resolution:
+ENVAULT_DIR=${HOME}/.envault
+LOCKED_FILES=${ENVAULT_DIR}/locked_files
+STATUS_FILE=${ENVAULT_DIR}/status
+LOG_FILE=${ENVAULT_DIR}/envault.log
+
+# arguments parsing
+CMD=$1
+STATUS=$(cat $STATUS_FILE)
+
+
+main(){
+
+    if [[ $CMD == 'edit' ]];
+    then
+        echo "Be carefull when editing directly."
+        $EDITOR $LOCKED_FILES
+
+    elif [[ $CMD == 'status' ]];
+    then
+        echo $STATUS
+
+    elif [[ $CMD == 'show' ]];
+    then
+        cat $LOCKED_FILES
+
+    elif [[ $CMD == 'show-log' ]];
+    then
+        cat $LOG_FILE
+
+    elif [[ $CMD == 'add' ]];
+    then
+        filename=$2
+        filepath=$(get_file_path $filename)
+        cat $LOCKED_FILES | grep $filepath >/dev/null 2>/dev/null
+        RV=$?
+        if [[ $RV == 0 ]];
+        then
+            echo "file $filepath already in envault"
+        else
+            echo $filepath >> $LOCKED_FILES
+            echo_log "file $filepath added"
+        fi
+
+    elif [[ $CMD == 'remove' ]];
+    then
+        filename=$2
+        filepath=$(get_file_path $filename)
+        cat $LOCKED_FILES | grep $filepath >/dev/null 2>/dev/null
+        RV=$?
+        if [[ $RV != 0 ]];
+        then
+            echo "file $filepath not in envault"
+        else
+            filepath_escaped=$(echo "$filepath" | sed 's/\//\\\//g')
+            sed -i '' "/$filepath_escaped/d" $LOCKED_FILES
+            echo_log "file $filepath removed"
+        fi
+
+    elif [[ $CMD == 'lock' && $STATUS == 'open' ]];
+    then
+        log "locking envault"
+        cat $LOCKED_FILES | while read filename
+        do
+            /usr/local/bin/gpg --output "${filename}.enc" -r envault --encrypt "$filename" >/dev/null 2>/dev/null
+            RV=$?
+            if [[ $RV != 0 ]];
+            then
+                echo_log "error: $RV encrypting $filename"
+            else
+                rm -f "$filename"
+                echo "locked" > $STATUS_FILE
+            fi
+        done
+
+    elif [[ $CMD == 'open' && $STATUS == 'locked' ]]; 
+    then
+        log "opening envault"
+        cat $LOCKED_FILES | while read filename
+        do
+            /usr/local/bin/gpg --output "${filename}" --decrypt "${filename}.enc" >/dev/null 2>/dev/null  
+            RV=$?
+            if [[ $RV != 0 ]];
+            then
+                echo_log "error: $RV decrypting ${filename}.enc"
+            else
+                rm -f "$filename.enc"
+                echo "open" > $STATUS_FILE
+            fi       
+        done
+
+    elif [[ $CMD == 'open' && $STATUS == 'open' || $CMD == 'lock' && $STATUS == 'locked' ]]; 
+    then
+        :
+
+    elif [[ $CMD == 'update' ]];
+    then
+        SEARCH_DIR=$2
+        rm -f "$HOME/.envault"
+        for filename in $(find $SEARCH_DIR -name .env -type f); do
+            echo "$filename" >> "$HOME/.envault"
+        done
+        echo_log "envault registry updated!"
+
+    else
+        usage
+    fi
+
+}
+
+usage() {
+        echo "
+=== ENVUALT ===
+State: $STATUS
+
+envault <option>
+
+Options:
+
+lock        encrypts all files in vault
+open        encrypts all files in vault
+add         adds file to vault
+remove      removes file from vault
+show        shows vaulted files
+show-log    shows envault log
+edit        open vaulted files list in editor\
+"
+}
+
+get_file_path() {
+    echo "$(cd "$(dirname "$1")" && pwd)/$(basename "$1")"
+}
+
+log(){
+    echo "$(date +"%Y-%m-%d|%H:%M:%S")    $@" >> $LOG_FILE
+}
+
+echo_log(){
+    echo "$@"
+    log "$@"
+}
+
+
+main "$@"
