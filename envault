@@ -3,13 +3,12 @@
 # path resolution:
 ENVAULT_DIR=${HOME}/.envault
 LOCKED_FILES=${ENVAULT_DIR}/locked_files
-STATUS_FILE=${ENVAULT_DIR}/status
+CONF_FILE=${ENVAULT_DIR}/envault.conf
 LOG_FILE=${ENVAULT_DIR}/envault.log
+source $CONF_FILE
 
 # arguments parsing
 CMD=$1
-STATUS=$(cat $STATUS_FILE)
-
 
 main(){
 
@@ -66,14 +65,14 @@ main(){
         log "locking envault"
         cat $LOCKED_FILES | while read filename
         do
-            /usr/local/bin/gpg --output "${filename}.enc" -r envault --encrypt "$filename" >/dev/null 2>/dev/null
+            /usr/local/bin/gpg --output "${filename}.enc" -r $MASTER_KEY --encrypt "$filename" >/dev/null 2>/dev/null
             RV=$?
             if [[ $RV != 0 ]];
             then
                 echo_log "error: $RV encrypting $filename"
             else
                 rm -f "$filename"
-                echo "locked" > $STATUS_FILE
+                sed -i '' 's/STATUS=.*/STATUS=locked/g' $CONF_FILE
             fi
         done
     fi
@@ -92,7 +91,7 @@ main(){
                     echo_log "error: $RV decrypting ${filename}.enc"
                 else
                     rm -f "$filename.enc"
-                    echo "open" > $STATUS_FILE
+                    sed -i '' 's/STATUS=.*/STATUS=open/g' $CONF_FILE
                 fi       
             done
         fi
