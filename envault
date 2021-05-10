@@ -143,5 +143,12 @@ echo_log(){
     log "$@"
 }
 
+setup(){
+    echo "check gpg"
+    # brew install --cask gpg-suite
+    echo "setup key"
+    # gpg --generate-key
+    echo "setup cron"
+}
 
 main "$@"
